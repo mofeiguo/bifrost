@@ -13,6 +13,7 @@ import (
 	"github.com/bytedance/sonic"
 	"github.com/google/uuid"
 	bifrost "github.com/maximhq/bifrost/core"
+	"github.com/maximhq/bifrost/core/providers/codex"
 	"github.com/maximhq/bifrost/core/schemas"
 	"github.com/maximhq/bifrost/transports/bifrost-http/lib"
 	"github.com/valyala/fasthttp"
@@ -766,6 +767,10 @@ func validateProviderKeyURL(provider schemas.ModelProvider, key schemas.Key) err
 	case schemas.SGL:
 		if key.SGLKeyConfig == nil || !key.SGLKeyConfig.URL.IsSet() {
 			return fmt.Errorf("sgl_key_config.url is required for SGL keys")
+		}
+	case schemas.Codex:
+		if err := codex.ValidateKey(key); err != nil {
+			return err
 		}
 	case schemas.GithubCopilot:
 		// A Copilot API token in value is a valid alternative to the GitHub App bundle. But a

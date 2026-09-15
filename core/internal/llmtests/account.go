@@ -196,6 +196,7 @@ func (account *ComprehensiveTestAccount) GetConfiguredProviders() ([]schemas.Mod
 		schemas.Wafer,
 		schemas.Databricks,
 		schemas.GithubCopilot,
+		schemas.Codex,
 		ProviderOpenAICustom,
 	}, nil
 }
@@ -525,6 +526,14 @@ func (account *ComprehensiveTestAccount) GetKeysForProvider(ctx context.Context,
 					RepositoryID:   *schemas.NewSecretVar("env.GITHUB_COPILOT_REPOSITORY_ID"),
 					PrivateKey:     *schemas.NewSecretVar("env.GITHUB_COPILOT_PRIVATE_KEY"),
 				},
+			},
+		}, nil
+	case schemas.Codex:
+		return []schemas.Key{
+			{
+				Value:  *schemas.NewSecretVar("env.CODEX_OAUTH_JSON"),
+				Models: []string{"*"},
+				Weight: 1.0,
 			},
 		}, nil
 	case schemas.Gemini:
@@ -932,6 +941,19 @@ func (account *ComprehensiveTestAccount) GetConfigForProvider(providerKey schema
 			},
 		}, nil
 	case schemas.GithubCopilot:
+		return &schemas.ProviderConfig{
+			NetworkConfig: schemas.NetworkConfig{
+				DefaultRequestTimeoutInSeconds: 120,
+				MaxRetries:                     10,
+				RetryBackoffInitial:            5 * time.Second,
+				RetryBackoffMax:                3 * time.Minute,
+			},
+			ConcurrencyAndBufferSize: schemas.ConcurrencyAndBufferSize{
+				Concurrency: Concurrency,
+				BufferSize:  10,
+			},
+		}, nil
+	case schemas.Codex:
 		return &schemas.ProviderConfig{
 			NetworkConfig: schemas.NetworkConfig{
 				DefaultRequestTimeoutInSeconds: 120,

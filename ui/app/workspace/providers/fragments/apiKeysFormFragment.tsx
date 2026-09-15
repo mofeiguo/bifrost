@@ -153,6 +153,7 @@ export function ApiKeyFormFragment({ control, providerName, baseProviderType, fo
 	const isFireworks = effectiveProvider === "fireworks";
 	const isDatabricks = effectiveProvider === "databricks";
 	const isGithubCopilot = effectiveProvider === "github-copilot";
+	const isCodex = effectiveProvider === "codex";
 	// Reactive, so the App-credential labels stay truthful. Once a Copilot token is present
 	// those fields genuinely are optional, and a static "(Required)" would contradict the
 	// section note telling the operator they can leave them blank.
@@ -349,7 +350,8 @@ export function ApiKeyFormFragment({ control, providerName, baseProviderType, fo
 					render={({ field }) => (
 						<FormItem>
 							<FormLabel>
-								{isGithubCopilot ? "Copilot API Token" : "API Key"} {isVLLM || isGithubCopilot ? "(Optional)" : ""}
+								{isCodex ? "ChatGPT OAuth JSON" : isGithubCopilot ? "Copilot API Token" : "API Key"}{" "}
+								{isVLLM || isGithubCopilot ? "(Optional)" : ""}
 							</FormLabel>
 							{isGithubCopilot && (
 								<FormDescription>
@@ -358,12 +360,28 @@ export function ApiKeyFormFragment({ control, providerName, baseProviderType, fo
 									below for anything long-running.
 								</FormDescription>
 							)}
+							{isCodex && (
+								<FormDescription>
+									Paste ~/.codex/auth.json or the flat ChatGPT OAuth JSON (access_token, refresh_token, account_id). Refresh tokens
+									rotate; Bifrost writes the new JSON back to this key. This uses ChatGPT&apos;s unofficial Codex backend and requires
+									an active Plus/Pro plan with Codex access.
+								</FormDescription>
+							)}
 							<FormControl>
-								<SecretVarInput
-									placeholder={isGithubCopilot ? "Copilot API token, or leave blank to use a GitHub App" : "API Key or env.MY_KEY"}
-									type="text"
-									{...field}
-								/>
+								{isCodex ? (
+									<SecretVarInput
+										placeholder='{"access_token":"...","refresh_token":"...","account_id":"..."}'
+										variant="textarea"
+										rows={6}
+										{...field}
+									/>
+								) : (
+									<SecretVarInput
+										placeholder={isGithubCopilot ? "Copilot API token, or leave blank to use a GitHub App" : "API Key or env.MY_KEY"}
+										type="text"
+										{...field}
+									/>
+								)}
 							</FormControl>
 							<FormMessage />
 						</FormItem>

@@ -1,0 +1,177 @@
+---
+title: "ChatGPT Codex"
+description: "Route chat and Responses requests through a ChatGPT Plus/Pro Codex subscription"
+icon: "robot"
+---
+
+## Overview
+
+Codex is a dedicated Bifrost provider that uses a **ChatGPT Plus/Pro subscription**
+as the upstream, the same unofficial Codex backend Codex CLI talks to
+(`https://chatgpt.com/backend-api/codex`). It is **not** the OpenAI API-key
+provider, and it is **not** a Codex CLI client.
+
+Authentication is the ChatGPT OAuth JSON Codex CLI stores in `~/.codex/auth.json`.
+Bifrost refreshes access tokens through `https://auth.openai.com/oauth/token`
+and writes the rotated `refresh_token` back to the configured key.
+
+<Warning>
+The Codex backend, OAuth client, and required headers are not a published OpenAI
+API. They follow Codex CLI and can change without notice. Using a personal
+ChatGPT subscription as a gateway upstream may violate ChatGPT's terms of use.
+Prefer an official OpenAI API key when you need a supported integration.
+</Warning>
+
+### Supported Operations
+
+| Operation | Non-Streaming | Streaming | Endpoint |
+| --------- | ------------- | --------- | -------- |
+| Responses API | ✅ | ✅ | `/responses` |
+| Chat Completions | ✅ | ✅ | converted through `/responses` |
+| List Models | ✅ | - | `/models` |
+| Text Completions | ❌ | ❌ | - |
+| Embeddings | ❌ | - | - |
+| Image Generation | ❌ | ❌ | - |
+| Speech (TTS) | ❌ | ❌ | - |
+| Transcriptions (STT) | ❌ | ❌ | - |
+| Batch | ❌ | - | - |
+
+<Note>
+Which models you can reach depends on the ChatGPT plan and whether Codex is
+enabled on the account. Check `/v1/models?provider=codex` rather than assuming
+a slug is available.
+</Note>
+
+---
+
+## Before you start
+
+1. Sign in to Codex CLI (or ChatGPT) with a Plus/Pro account that has Codex access.
+2. Copy the OAuth JSON. Either shape works:
+
+```json
+{
+  "access_token": "...",
+  "refresh_token": "...",
+  "account_id": "..."
+}
+```
+
+or the nested Codex CLI file:
+
+```json
+{
+  "auth_mode": "chatgpt",
+  "tokens": {
+    "access_token": "...",
+    "refresh_token": "...",
+    "account_id": "..."
+  }
+}
+```
+
+`account_id` can be omitted when the access token JWT carries
+`https://api.openai.com/auth.chatgpt_account_id`. A refresh token is required
+once the access token expires — ChatGPT rotates it, and Bifrost persists the
+new value on the same key.
+
+---
+
+## Setup & Configuration
+
+<Tabs>
+<Tab title="Web UI">
+
+1. Navigate to **Models** > **Model Providers**.
+2. Click **Add Provider** and choose **ChatGPT Codex**.
+3. Paste the ChatGPT OAuth JSON into **ChatGPT OAuth JSON**.
+4. Click **Save**.
+
+Each field accepts an `env.` reference, so the JSON can stay in your secret
+manager rather than in the database.
+
+</Tab>
+<Tab title="config.json">
+
+```json
+{
+  "providers": {
+    "codex": {
+      "keys": [
+        {
+          "name": "chatgpt-codex",
+          "models": ["*"],
+          "weight": 1.0,
+          "value": "env.CODEX_OAUTH_JSON"
+        }
+      ]
+    }
+  }
+}
+```
+
+</Tab>
+<Tab title="API">
+
+Create the provider, then add a key whose `value` is the OAuth JSON (or an
+`env.` / vault reference to it).
+
+```bash
+curl -X POST http://localhost:8080/api/providers \
+  -H "Content-Type: application/json" \
+  -d '{"provider":"codex"}'
+
+curl -X POST http://localhost:8080/api/providers/codex/keys \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "chatgpt-codex",
+    "models": ["*"],
+    "weight": 1.0,
+    "value": "{\"access_token\":\"...\",\"refresh_token\":\"...\",\"account_id\":\"...\"}"
+  }'
+```
+
+</Tab>
+</Tabs>
+
+---
+
+## Usage
+
+```bash
+curl http://localhost:8080/v1/responses \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "codex/gpt-5.3-codex",
+    "input": "Say hello in one sentence."
+  }'
+```
+
+```bash
+curl http://localhost:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "codex/gpt-5.3-codex",
+    "messages": [{"role": "user", "content": "Say hello in one sentence."}]
+  }'
+```
+
+```bash
+curl "http://localhost:8080/v1/models?provider=codex"
+```
+
+Chat completions are converted to the native Responses API before they are sent
+upstream.
+
+---
+
+## Notes
+
+- Default base URL is `https://chatgpt.com/backend-api/codex`. Override it only
+  if you have a documented mirror.
+- 401 and 403 from ChatGPT disable fallbacks so a dead subscription is not
+  retried against another provider as if it were a transient error.
+- Token refresh uses the Codex CLI OAuth client
+  (`app_EMoamEEZ73f0CkXaXp7hrann`). A failed persist after rotation leaves the
+  in-memory cache valid until restart; the next process start then needs a
+  fresh login.

@@ -496,3 +496,52 @@ func TestValidateKeyGithubCopilot(t *testing.T) {
 
 	}
 }
+
+func TestValidateKeyCodex(t *testing.T) {
+	tests := []struct {
+		name      string
+		value     string
+		wantError string
+	}{
+		{
+			name:  "flat oauth json",
+			value: `{"access_token":"at","refresh_token":"rt","account_id":"acc"}`,
+		},
+		{
+			name:  "nested cli auth json",
+			value: `{"auth_mode":"chatgpt","tokens":{"refresh_token":"rt"}}`,
+		},
+		{
+			name:      "empty",
+			value:     "",
+			wantError: "codex: key value is empty",
+		},
+		{
+			name:      "not json",
+			value:     "sk-not-oauth",
+			wantError: "chatgpt oauth json",
+		},
+		{
+			name:      "missing tokens",
+			value:     `{"type":"codex"}`,
+			wantError: "access_token or refresh_token",
+		},
+		{
+			name:  "env reference is accepted at setup",
+			value: "env.CODEX_OAUTH_JSON_MISSING_XYZ",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			key := schemas.Key{Value: *schemas.NewSecretVar(tt.value)}
+			err := validateKey(schemas.Codex, &key)
+			if tt.wantError == "" {
+				assert.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantError)
+		})
+	}
+}

@@ -24,6 +24,7 @@ import (
 	bifrost "github.com/maximhq/bifrost/core"
 	"github.com/maximhq/bifrost/core/mcp"
 	mcputils "github.com/maximhq/bifrost/core/mcp/utils"
+	"github.com/maximhq/bifrost/core/providers/codex"
 	"github.com/maximhq/bifrost/core/schemas"
 	"github.com/maximhq/bifrost/framework"
 	"github.com/maximhq/bifrost/framework/configstore"
@@ -1040,6 +1041,11 @@ func LoadConfig(ctx context.Context, configDirPath string) (*Config, error) {
 			ReadBufferSize: 1024 * 64,
 		}
 	}
+	// ChatGPT OAuth refresh tokens rotate. Write the new JSON back to the
+	// configured key so a restart does not keep a revoked refresh_token.
+	codex.SetKeyPersister(func(ctx context.Context, key schemas.Key) error {
+		return config.PersistRotatedProviderKey(ctx, schemas.Codex, key)
+	})
 	return config, nil
 }
 
@@ -6797,6 +6803,48 @@ func (c *Config) UpdateProviderKey(ctx context.Context, provider schemas.ModelPr
 	}
 
 	logger.Info("Updated key %s for provider: %s", keyID, provider)
+	return nil
+}
+
+// PersistRotatedProviderKey writes a provider key's rotated secret back to the
+// in-memory config and the config store. It does not recreate the provider —
+// the caller already holds a live token cache for the current process.
+func (c *Config) PersistRotatedProviderKey(ctx context.Context, provider schemas.ModelProvider, key schemas.Key) error {
+	if strings.TrimSpace(key.ID) == "" {
+		return fmt.Errorf("key id is required")
+	}
+
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
+
+	existingConfig, exists := c.Providers[provider]
+	if !exists {
+		return ErrNotFound
+	}
+
+	index := slices.IndexFunc(existingConfig.Keys, func(existingKey schemas.Key) bool {
+		return existingKey.ID == key.ID
+	})
+	if index == -1 {
+		return ErrNotFound
+	}
+
+	updatedConfig := existingConfig
+	updatedConfig.Keys = append([]schemas.Key(nil), existingConfig.Keys...)
+	stored := updatedConfig.Keys[index]
+	stored.Value = key.Value
+	updatedConfig.Keys[index] = stored
+
+	if c.ConfigStore != nil {
+		if err := c.ConfigStore.UpdateProviderKey(ctx, provider, key.ID, stored); err != nil {
+			if errors.Is(err, configstore.ErrNotFound) {
+				return ErrNotFound
+			}
+			return fmt.Errorf("failed to persist rotated provider key: %w", err)
+		}
+	}
+
+	c.Providers[provider] = updatedConfig
 	return nil
 }
 

@@ -829,6 +829,10 @@ export const ProviderIcons = {
 	//
 	// The viewBox is 256x208, not square. preserveAspectRatio is left at its default
 	// (xMidYMid meet) so equal width and height letterbox the mark rather than stretch it.
+	codex: ({ size = "md", className = "" }: IconProps) => {
+		const resolvedSize = resolveSize(size);
+		return <img src="/images/codex.png" alt="codex" width={resolvedSize} height={resolvedSize} className={className} />;
+	},
 	"github-copilot": ({ size = "md", className = "" }: IconProps) => {
 		const resolvedSize = resolveSize(size);
 		return (

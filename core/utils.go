@@ -18,6 +18,7 @@ import (
 
 	"github.com/maximhq/bifrost/core/mcp"
 	"github.com/maximhq/bifrost/core/network"
+	"github.com/maximhq/bifrost/core/providers/codex"
 	"github.com/maximhq/bifrost/core/schemas"
 )
 
@@ -215,6 +216,10 @@ func validateKey(providerKey schemas.ModelProvider, key *schemas.Key) error {
 		}
 		if key.SGLKeyConfig.URL.GetValue() == "" {
 			return fmt.Errorf("sgl_key_config.url is required")
+		}
+	case schemas.Codex:
+		if err := codex.ValidateKey(*key); err != nil {
+			return err
 		}
 	case schemas.GithubCopilot:
 		// Two auth modes, either is sufficient.

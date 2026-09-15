@@ -95539,7 +95539,9 @@
           "fireworks",
           "sarvam",
           "wafer",
-          "databricks"
+          "databricks",
+          "github-copilot",
+          "codex"
         ]
       },
       "Fallback": {
